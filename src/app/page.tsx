@@ -23,7 +23,9 @@ import {
   Quote,
   MessageSquareText,
   FileOutput,
-  Rocket
+  Rocket,
+  FileArchive,
+  File
 } from "lucide-react";
 
 export default function HomePage() {
@@ -35,6 +37,10 @@ export default function HomePage() {
     message: string;
     downloadBlob?: Blob;
     downloadFileName?: string;
+    docxBlob?: Blob;
+    docxFileName?: string;
+    pdfBlob?: Blob;
+    pdfFileName?: string;
     stats?: {
       quotesConverted: number;
       footnotesInserted: number;
@@ -109,6 +115,7 @@ export default function HomePage() {
       if (response.ok) {
         // Obtener el archivo como blob
         const blob = await response.blob();
+        const contentType = response.headers.get('Content-Type') || '';
         
         // Determinar el nombre del archivo
         const contentDisposition = response.headers.get('Content-Disposition');
@@ -118,16 +125,51 @@ export default function HomePage() {
           if (match) fileName = match[1];
         }
 
-        setResult({
-          success: true,
-          message: "¡Documento procesado correctamente!",
-          downloadBlob: blob,
-          downloadFileName: fileName,
-          stats: {
-            quotesConverted,
-            footnotesInserted
+        // Si es un ZIP (contiene PDF + DOCX), extraer los archivos individuales
+        if (contentType.includes('zip') || fileName.endsWith('.zip')) {
+          const JSZip = (await import('jszip')).default;
+          const zip = await JSZip.loadAsync(blob);
+          
+          let docxBlob: Blob | undefined;
+          let docxFileName: string | undefined;
+          let pdfBlob: Blob | undefined;
+          let pdfFileName: string | undefined;
+          
+          for (const [path, file] of Object.entries(zip.files)) {
+            if (path.endsWith('.docx') && !file.dir) {
+              docxBlob = await file.async('blob');
+              docxFileName = path;
+            } else if (path.endsWith('.pdf') && !file.dir) {
+              pdfBlob = await file.async('blob');
+              pdfFileName = path;
+            }
           }
-        });
+          
+          setResult({
+            success: true,
+            message: "¡Documento procesado correctamente!",
+            docxBlob,
+            docxFileName,
+            pdfBlob,
+            pdfFileName,
+            stats: {
+              quotesConverted,
+              footnotesInserted
+            }
+          });
+        } else {
+          // Solo DOCX
+          setResult({
+            success: true,
+            message: "¡Documento procesado correctamente!",
+            downloadBlob: blob,
+            downloadFileName: fileName,
+            stats: {
+              quotesConverted,
+              footnotesInserted
+            }
+          });
+        }
       } else {
         // Intentar parsear como JSON para obtener el error
         try {
@@ -422,16 +464,51 @@ export default function HomePage() {
                       </div>
                     )}
 
-                    {result.success && result.downloadBlob && (
+                    {result.success && (result.downloadBlob || result.docxBlob) && (
                       <div className="flex flex-col sm:flex-row gap-4 mt-6">
+                        {/* Botón DOCX */}
                         <Button
                           size="lg"
                           className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white gap-3 flex-1 py-6 shadow-lg shadow-emerald-500/20"
-                          onClick={downloadResult}
+                          onClick={() => {
+                            const blob = result.docxBlob || result.downloadBlob;
+                            const fileName = result.docxFileName || result.downloadFileName;
+                            if (!blob) return;
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = fileName || 'documento_procesado.docx';
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                          }}
                         >
-                          <FileDown className="h-5 w-5" />
-                          {convertToPdf ? 'Descargar .zip' : 'Descargar .docx'}
+                          <FileText className="h-5 w-5" />
+                          Descargar .docx
                         </Button>
+                        
+                        {/* Botón PDF (solo si existe) */}
+                        {result.pdfBlob && (
+                          <Button
+                            size="lg"
+                            className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white gap-3 flex-1 py-6 shadow-lg shadow-red-500/20"
+                            onClick={() => {
+                              if (!result.pdfBlob) return;
+                              const url = URL.createObjectURL(result.pdfBlob);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = result.pdfFileName || 'documento_procesado.pdf';
+                              document.body.appendChild(a);
+                              a.click();
+                              document.body.removeChild(a);
+                              URL.revokeObjectURL(url);
+                            }}
+                          >
+                            <File className="h-5 w-5" />
+                            Descargar .pdf
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -506,7 +583,7 @@ export default function HomePage() {
             DocuFix — Procesamiento de documentos simplificado
           </p>
           <p className="text-xs text-slate-600 mt-1">
-            Creado por <span className="text-slate-400">NathanSBR</span>
+            Creado por <span className="text-slate-400">Jonathan Stevens Betancourt</span>
           </p>
         </div>
       </footer>

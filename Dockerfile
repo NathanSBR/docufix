@@ -35,6 +35,12 @@ COPY . .
 # Construir la aplicación Next.js
 RUN npm run build
 
+# Copiar archivos estáticos para standalone mode
+# Next.js standalone no incluye estos archivos por defecto
+RUN cp -r public .next/standalone/ && \
+    cp -r .next/static .next/standalone/.next/ && \
+    cp -r scripts .next/standalone/
+
 # Exponer puerto
 EXPOSE 3000
 

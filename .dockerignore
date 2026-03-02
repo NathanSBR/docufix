@@ -4,9 +4,11 @@ node_modules
 .env
 .env.local
 .env*.local
-*.zip
 .DS_Store
 Thumbs.db
 dev.log
 server.log
 .next
+# Allow public folder files for deployment
+!public/*.zip
+!public/*.docx
