@@ -1,0 +1,12 @@
+node_modules
+.git
+*.log
+.env
+.env.local
+.env*.local
+*.zip
+.DS_Store
+Thumbs.db
+dev.log
+server.log
+.next
